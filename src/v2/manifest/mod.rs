@@ -182,16 +182,15 @@ impl Client {
             StatusCode::MOVED_PERMANENTLY
             | StatusCode::TEMPORARY_REDIRECT
             | StatusCode::FOUND
-            | StatusCode::OK => {}
-            StatusCode::NOT_FOUND => return Ok(None),
-            _ => return Err(Error::UnexpectedHttpStatus(status)),
+            | StatusCode::OK => {
+                let media_type =
+                    evaluate_media_type(r.headers().get(header::CONTENT_TYPE), &r.url())?;
+                trace!("Manifest media-type: {:?}", media_type);
+                Ok(Some(media_type))
+            }
+            StatusCode::NOT_FOUND => Ok(None),
+            _ => Err(Error::UnexpectedHttpStatus(status)),
         }
-
-        let media_type = evaluate_media_type(r.headers().get(header::CONTENT_TYPE), &r.url())?;
-
-        trace!("Manifest media-type: {:?}", media_type);
-
-        Ok(Some(media_type))
     }
 }
 

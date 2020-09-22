@@ -238,7 +238,7 @@ impl WwwAuthenticateHeaderContentBearer {
             .iter()
             .enumerate()
             .fold(String::new(), |acc, (i, &s)| {
-                let separator = if i > 1 { "&" } else { "" };
+                let separator = if i > 0 { "&" } else { "" };
                 acc + separator + "scope=" + s
             });
 
