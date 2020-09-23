@@ -23,6 +23,53 @@ impl Client {
             .map(|(manifest, _)| manifest)
     }
 
+    pub async fn put_manifest(
+        &self,
+        name: &str,
+        reference: &str,
+        manifest: &Manifest,
+    ) -> Result<Option<String>> {
+        let url = self.build_url(name, reference)?;
+
+        let (data, mediatype) = match manifest {
+            Manifest::S1Signed(s1s) => (
+                serde_json::to_value(s1s)?,
+                mediatypes::MediaTypes::ManifestV2S1Signed,
+            ),
+            Manifest::S2(s2) => (
+                serde_json::to_value(&s2.manifest_spec)?,
+                mediatypes::MediaTypes::ManifestV2S2,
+            ),
+            Manifest::ML(ml) => (
+                serde_json::to_value(ml)?,
+                mediatypes::MediaTypes::ManifestList,
+            ),
+        };
+        let res = self
+            .build_reqwest(Method::PUT, url.clone())
+            .json(&data)
+            .header(header::CONTENT_TYPE, mediatype.to_string())
+            .send()
+            .await?;
+
+        let status = res.status();
+        trace!("PUT '{}' status: {:?}", res.url(), status);
+
+        let digest_header = match status {
+            StatusCode::CREATED => res.headers().get("docker-content-digest"),
+            _ => return Err(Error::UnexpectedHttpStatus(status)),
+        };
+
+        let content_digest = match digest_header {
+            Some(v) => Some(v.to_str()?.to_owned()),
+            None => {
+                debug!("docker-content-digest not found in result headers");
+                None
+            }
+        };
+        Ok(content_digest)
+    }
+
     /// Fetch an image manifest and return it with its digest.
     ///
     /// The name and reference parameters identify the image.
