@@ -31,6 +31,8 @@ pub enum Error {
     UnexpectedHttpStatus(http::StatusCode),
     #[error("invalid auth token '{0}'")]
     InvalidAuthToken(String),
+    #[error("missing auth token")]
+    MissingAuthToken,
     #[error("API V2 not supported")]
     V2NotSupported,
     #[error("obtained token is invalid")]

@@ -13,7 +13,9 @@ impl Auth {
     /// Add authentication headers to a request builder.
     pub(crate) fn add_auth_headers(&self, request_builder: RequestBuilder) -> RequestBuilder {
         match self {
-            Auth::Bearer(bearer_auth) => request_builder.bearer_auth(bearer_auth.token.clone()),
+            Auth::Bearer(bearer_auth) => {
+                request_builder.bearer_auth(bearer_auth.get_token().unwrap_or(""))
+            }
             Auth::Basic(basic_auth) => {
                 request_builder.basic_auth(basic_auth.user.clone(), basic_auth.password.clone())
             }
@@ -24,7 +26,8 @@ impl Auth {
 /// Used for Bearer HTTP Authentication.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct BearerAuth {
-    token: String,
+    token: Option<String>,
+    access_token: Option<String>,
     expires_in: Option<u32>,
     issued_at: Option<String>,
     refresh_token: Option<String>,
@@ -64,21 +67,26 @@ impl BearerAuth {
 
         let bearer_auth = r.json::<BearerAuth>().await?;
 
-        match bearer_auth.token.as_str() {
-            "unauthenticated" | "" => return Err(Error::InvalidAuthToken(bearer_auth.token)),
+        let auth_token = bearer_auth.get_token().ok_or(Error::MissingAuthToken)?;
+        match auth_token {
+            "unauthenticated" | "" => return Err(Error::InvalidAuthToken(auth_token.to_string())),
             _ => {}
         };
 
         // mask the token before logging it
-        let chars_count = bearer_auth.token.chars().count();
+        let chars_count = auth_token.chars().count();
         let mask_start = std::cmp::min(1, chars_count - 1);
         let mask_end = std::cmp::max(chars_count - 1, 1);
-        let mut masked_token = bearer_auth.token.clone();
+        let mut masked_token = auth_token.to_string();
         masked_token.replace_range(mask_start..mask_end, &"*".repeat(mask_end - mask_start));
 
         trace!("authenticate: got token: {:?}", masked_token);
 
         Ok(bearer_auth)
+    }
+
+    fn get_token(&self) -> Option<&str> {
+        self.token.as_deref().or(self.access_token.as_deref())
     }
 }
 
